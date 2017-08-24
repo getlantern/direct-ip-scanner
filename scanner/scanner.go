@@ -10,9 +10,10 @@ func scanRange(domain string, iprange string) error {
 		return err
 	}
 
-	for next := ipreader.NextIP(); next != nil; {
-		log.Printf("Scanning IP: %v", next)
-		// TODO
+	
+	for current := ipreader.GetCurrentIP(); current != nil; current = ipreader.GetNextIP(){
+		log.Printf("    * Scanning IP: %v", ipreader.GetCurrentIP())
+		// TODO: here we scan the IP for a given domain
 	}
 
 	return nil

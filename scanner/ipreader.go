@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"strings"
@@ -28,25 +29,45 @@ func NewIPRangeReader(input string) (error, *IPRangeReader) {
 		raw:        input,
 		subRanges:  subRanges,
 		currentSub: 0,
+		current:    subRanges[0].first,
 	}
 }
 
-func (r *IPRangeReader) NextIP() (ip *net.IP) {
-	ip = r.getNextInSub()
-	if ip == nil && r.currentSub < len(r.subRanges)-1 {
+func (r *IPRangeReader) GetNextIP() net.IP {
+	if r.current == nil {
+		return nil
+	}
+
+	r.getNextInSub()
+
+	if r.current == nil && r.currentSub < len(r.subRanges)-1 {
 		r.currentSub = r.currentSub + 1
-		ip = r.getNextInSub()
+		r.current = r.subRanges[r.currentSub].first
+		r.getNextInSub()
 	}
-	return
+
+	return r.current
 }
 
-func (r *IPRangeReader) getNextInSub() (ip *net.IP) {
+func (r *IPRangeReader) GetCurrentIP() net.IP {
+	return r.current
+}
+
+func (r *IPRangeReader) getNextInSub() {
 	s := r.subRanges[r.currentSub]
 
-	fmt.Printf("SUBRANGE: %v to %v\n", s.first, s.last)
+	for checkIndex := 15; checkIndex > 11; checkIndex = checkIndex - 1 {
+		if r.current[checkIndex] < s.last[checkIndex] {
+			r.current[checkIndex] = r.current[checkIndex] + 1
+			break
+		} else {
+			r.current[checkIndex] = 0
+		}
+	}
 
-	//return &net.IP{}
-	return nil
+	if bytes.Equal([]byte(r.current[12:]), []byte{0,0,0,0}) {
+		r.current = nil
+	}
 }
 
 func splitInSubRanges(input string) (err error, subranges []subRange) {
@@ -60,10 +81,13 @@ func splitInSubRanges(input string) (err error, subranges []subRange) {
 		if first == nil {
 			return fmt.Errorf("Invalid IP definition in subrange: %v", s), nil
 		}
-		last := net.ParseIP(limits[0])
+
+		last := net.ParseIP(limits[1])
 		if last == nil {
 			return fmt.Errorf("Invalid IP definition in subrange: %v", s), nil
 		}
+
+		// TODO: check that all values are less in the first than last
 
 		subranges = append(subranges, subRange{first, last})
 	}
