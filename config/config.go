@@ -17,7 +17,7 @@ type YamlDef struct {
 	Ipranges []IPRange
 }
 
-func GetRanges() (error, *YamlDef) {
+func GetRanges() (error, []IPRange) {
 	fdata, err := ioutil.ReadFile("./config.yaml")
 	if err != nil {
 		return err, nil
@@ -30,5 +30,5 @@ func GetRanges() (error, *YamlDef) {
 		return err, nil
 	}
 
-	return nil, &ipranges
+	return nil, ipranges.Ipranges
 }
