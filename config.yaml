@@ -1,10 +1,9 @@
 ipranges:
   - domain:
       name: youtube.com
+      url: 'https://<ip>/get_video_info\?\&video_id\=\<NOID\>\&el\=info\&ps\=default\&eurl\=\&gl\=US\&hl\=e'
+      response:
+        headers:
+          - 'Server: YouTubeFrontEnd'
       ranges: 
-      - 129.129.129.129-129.129.129.150
-      - 129.129.129.180-129.129.129.190
-  - domain:
-      name: facebook.com
-      ranges: 
-      - 29.29.29.129-29.29.29.150,45.45.23.23-45.45.45.45
+      - 216.58.211.206-216.58.211.210

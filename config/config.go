@@ -8,8 +8,12 @@ import (
 
 type IPRange struct {
 	Domain struct {
-		Name   string
-		Ranges []string `yaml:",flow"`
+		Name     string
+		Ranges   []string `yaml:",flow"`
+		Url      string
+		Response struct {
+			Headers []string `yaml:",flow"`
+		}
 	}
 }
 

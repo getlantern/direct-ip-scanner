@@ -16,7 +16,7 @@ func main() {
 	}
 
 	for _, r := range ipranges {
-		scanner.ScanDomain(r.Domain.Name, r.Domain.Ranges)
+		scanner.ScanDomain(r)
 	}
 
 	log.Println("Done.")
