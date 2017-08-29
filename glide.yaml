@@ -1,3 +1,5 @@
 package: .
 import:
 - package: gopkg.in/yaml.v2
+- package: github.com/workiva/go-datastructures
+  version: ~1.0.39

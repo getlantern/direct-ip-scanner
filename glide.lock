@@ -1,6 +1,12 @@
-hash: e98cad92287868cf85d5c3f49e6e54c964d8eeee85e7a8cbee0b5788796914c7
-updated: 2017-08-24T10:19:57.99001607+02:00
+hash: f5c8e208f18c8d7d709e586f3e20b8a35d704ba285e630351881da1063b5e05f
+updated: 2017-08-29T23:19:44.246175424+02:00
 imports:
+- name: github.com/workiva/go-datastructures
+  version: b9547a38b81ee66409d34781495d771dfa1e7e41
+  subpackages:
+  - set
+- name: gopkg.in/yaml.v1
+  version: 9f9df34309c04878acc86042b16630b0f696e1de
 - name: gopkg.in/yaml.v2
   version: cd8b52f8269e0feb286dfeef29f8fe4d5b397e0b
 testImports: []
