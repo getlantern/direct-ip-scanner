@@ -10,7 +10,16 @@ import (
 	"github.com/getlantern/direct-ip-scanner/config"
 )
 
-func scanRange(iprange, urlTemplate string, headers []string) error {
+func checkAllHeaders(respHeaders http.Header, headersToMatch map[string]string) bool {
+	for h, v := range headersToMatch {
+		if v != strings.Join(respHeaders[h], ", ") {
+			return false
+		}
+	}
+	return true
+}
+
+func scanRange(iprange, urlTemplate string, headers map[string]string) error {
 	tr := &http.Transport{
 		MaxIdleConns:       10,
 		IdleConnTimeout:    30 * time.Second,
@@ -44,7 +53,11 @@ func scanRange(iprange, urlTemplate string, headers []string) error {
 			log.Printf("Error connecting to client: %v", err)
 			continue
 		}
-		log.Println(resp.Header["Server"])
+
+		if checkAllHeaders(resp.Header, headers) {
+			log.Println("Found Matching IP!!!")
+		}
+
 		resp.Body.Close()
 	}
 

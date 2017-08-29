@@ -4,6 +4,6 @@ ipranges:
       url: 'https://<ip>/get_video_info\?\&video_id\=\<NOID\>\&el\=info\&ps\=default\&eurl\=\&gl\=US\&hl\=e'
       response:
         headers:
-          - 'Server: YouTubeFrontEnd'
+          Server: YouTubeFrontEnd
       ranges: 
       - 216.58.211.206-216.58.211.210

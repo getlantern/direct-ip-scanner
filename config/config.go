@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"io/ioutil"
 
 	yaml "gopkg.in/yaml.v1"
@@ -12,7 +13,7 @@ type IPRange struct {
 		Ranges   []string `yaml:",flow"`
 		Url      string
 		Response struct {
-			Headers []string `yaml:",flow"`
+			Headers map[string]string
 		}
 	}
 }
@@ -28,7 +29,6 @@ func GetRanges() (error, []IPRange) {
 	}
 
 	ipranges := YamlDef{}
-
 	err = yaml.Unmarshal([]byte(fdata), &ipranges)
 	if err != nil {
 		return err, nil
