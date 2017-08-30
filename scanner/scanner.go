@@ -5,8 +5,6 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/workiva/go-datastructures/set"
@@ -70,15 +68,9 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads, timeout i
 
 		log.Printf(" - Scanning IP range %v, with %v addresses\n", r, len(ips))
 
-		var wg sync.WaitGroup
-		var workers int64 = 0
-
+		workers := make(chan bool, nThreads)
 		for _, ip := range ips {
-			if atomic.LoadInt64(&workers) >= int64(nThreads) {
-				wg.Add(1)
-			}
-			atomic.AddInt64(&workers, 1)
-			wg.Wait()
+			workers <- true
 
 			go func(ip string) {
 				url := strings.Replace(iprange.Domain.Url, "<ip>", ip, 1)
@@ -93,11 +85,8 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads, timeout i
 					newSet.Add(ip)
 				}
 
-				wg.Done()
-				atomic.AddInt64(&workers, -1)
+				<-workers
 			}(ip)
 		}
-
-		wg.Wait()
 	}
 }
