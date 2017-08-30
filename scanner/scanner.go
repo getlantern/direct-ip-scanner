@@ -27,12 +27,9 @@ func scanIp(client *http.Client, url string, headers map[string]string) (bool, e
 		log.Printf("Error creating request: %v", err)
 		return false, nil
 	}
-	req.Host = "www.youtube.com"
 
 	resp, err := client.Do(req)
-	if err != nil {
-		return false, err
-	}
+	defer resp.Body.Close()
 	if err != nil {
 		log.Printf("Error connecting to client: %v", err)
 		return false, nil
@@ -41,9 +38,6 @@ func scanIp(client *http.Client, url string, headers map[string]string) (bool, e
 	if checkAllHeaders(resp.Header, headers) {
 		return true, nil
 	}
-
-	resp.Body.Close()
-
 	return false, nil
 }
 
@@ -62,7 +56,7 @@ func ScanDomain(iprange config.IPRange, results map[string]*set.Set) {
 	client := &http.Client{Transport: tr}
 
 	for _, r := range iprange.Domain.Ranges {
-		log.Printf(" - Using IP range %v\n", r)
+		log.Printf(" - Scanning IP range %v\n", r)
 
 		err, ipreader := NewIPRangeReader(r)
 		if err != nil {

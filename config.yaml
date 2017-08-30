@@ -1,9 +1,9 @@
 ipranges:
   - domain:
-      name: youtube.com
-      url: 'https://<ip>/get_video_info\?\&video_id\=\<NOID\>\&el\=info\&ps\=default\&eurl\=\&gl\=US\&hl\=e'
+      name: googlevideo.com
+      url: 'https://<ip>/videoplayback?mn=NO-ID'
       response:
         headers:
-          Server: YouTubeFrontEnd
+          Server: gvs 1.0
       ranges: 
-      - 216.58.211.206-216.58.211.210
+      - 216.21.170.207-216.21.170.210
