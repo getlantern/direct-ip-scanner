@@ -45,19 +45,21 @@ func scanIp(client *http.Client, url string, headers map[string]string) (bool, e
 	return false, nil
 }
 
-func ScanDomain(iprange config.IPRange, results ScanResults, nThreads int) {
-	log.Printf("Scanning domain %v with %v threads...\n", iprange.Domain.Name, nThreads)
+func ScanDomain(iprange config.IPRange, results ScanResults, nThreads, timeout int) {
+	log.Printf("Scanning domain %v with %v threads (timeout=%v)...\n", iprange.Domain.Name, nThreads, timeout)
 
 	newSet := set.New()
 	results[iprange.Domain.Name] = newSet
 
 	tr := &http.Transport{
 		MaxIdleConns:       10,
-		IdleConnTimeout:    30 * time.Second,
 		DisableCompression: true,
 		TLSClientConfig:    &tls.Config{InsecureSkipVerify: true},
 	}
-	client := &http.Client{Transport: tr}
+	client := &http.Client{
+		Transport: tr,
+		Timeout:   time.Duration(timeout) * time.Second,
+	}
 
 	for _, r := range iprange.Domain.Ranges {
 		ips, err := EnumerateIPs(r)
@@ -75,20 +77,22 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads int) {
 			if atomic.LoadInt64(&workers) >= int64(nThreads) {
 				wg.Wait()
 			}
-			atomic.AddInt64(&workers,1)
+			atomic.AddInt64(&workers, 1)
 			wg.Add(1)
-			
+
 			go func(ip string) {
 				url := strings.Replace(iprange.Domain.Url, "<ip>", ip, 1)
-				log.Printf("    * Scanning: %v\n", url)
+				log.Printf("    * Scanning: %v...", ip)
 
 				found, err := scanIp(client, url, iprange.Domain.Response.Headers)
 				if err != nil {
 					log.Printf("There was an error scanning the range %s: %s", r, err)
 				}
 				if found {
+					log.Printf("Found IP! -> %s", ip)
 					newSet.Add(ip)
 				}
+
 				wg.Done()
 			}(ip)
 		}

@@ -17,11 +17,13 @@ var (
 
 	outputFile string
 	nThreads   int
+	timeout    int
 )
 
 func init() {
 	flag.StringVar(&outputFile, "output", "found-ips.json", "Output JSON file for the found IPs")
 	flag.IntVar(&nThreads, "nthreads", runtime.NumCPU(), "Number of concurrent threads")
+	flag.IntVar(&timeout, "timeout", 30, "Timeout in seconds")
 }
 
 type OutputDomain struct {
@@ -43,7 +45,7 @@ func main() {
 	}
 
 	for _, r := range ipranges {
-		scanner.ScanDomain(r, results, nThreads)
+		scanner.ScanDomain(r, results, nThreads, timeout)
 	}
 
 	output := &Output{}
