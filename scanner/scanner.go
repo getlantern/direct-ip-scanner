@@ -66,15 +66,14 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads int) {
 	for _, r := range iprange.Domain.Ranges {
 		log.Printf(" - Scanning IP range %v\n", r)
 
-		err, ipreader := NewIPRangeReader(r)
+		ips, err := EnumerateIPs(r)
 		if err != nil {
 			log.Fatalf("Error creating IP Reader: %v", err)
 			continue
 		}
 
-		for current := ipreader.GetCurrentIP(); current != nil; current = ipreader.GetNextIP() {
+		for _, ip := range ips {
 			wg.Add(1)
-			ip := ipreader.GetCurrentIP().String()
 			pool.SendWorkTimedAsync(time.Minute, func() {
 				url := strings.Replace(iprange.Domain.Url, "<ip>", ip, 1)
 				log.Printf("    * Scanning: %v\n", url)
