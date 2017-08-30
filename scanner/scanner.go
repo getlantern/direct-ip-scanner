@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/jeffail/tunny"
 	"github.com/workiva/go-datastructures/set"
 
 	"github.com/getlantern/direct-ip-scanner/config"
@@ -34,11 +33,11 @@ func scanIp(client *http.Client, url string, headers map[string]string) (bool, e
 	}
 
 	resp, err := client.Do(req)
-	defer resp.Body.Close()
 	if err != nil {
 		log.Printf("Error connecting to client: %v", err)
 		return false, nil
 	}
+	defer resp.Body.Close()
 
 	if checkAllHeaders(resp.Header, headers) {
 		return true, nil
@@ -60,9 +59,6 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads int) {
 	}
 	client := &http.Client{Transport: tr}
 
-	pool, _ := tunny.CreatePoolGeneric(nThreads).Open()
-	defer pool.Close()
-
 	for _, r := range iprange.Domain.Ranges {
 		ips, err := EnumerateIPs(r)
 		if err != nil {
@@ -79,9 +75,10 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads int) {
 			if atomic.LoadInt64(&workers) >= int64(nThreads) {
 				wg.Wait()
 			}
+			atomic.AddInt64(&workers,1)
 			wg.Add(1)
-			ip := ip
-			pool.SendWorkTimedAsync(time.Minute, func() {
+			
+			go func(ip string) {
 				url := strings.Replace(iprange.Domain.Url, "<ip>", ip, 1)
 				log.Printf("    * Scanning: %v\n", url)
 
@@ -93,7 +90,7 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads int) {
 					newSet.Add(ip)
 				}
 				wg.Done()
-			}, nil)
+			}(ip)
 		}
 
 		wg.Wait()
