@@ -12,6 +12,8 @@ import (
 	"github.com/getlantern/direct-ip-scanner/config"
 )
 
+type ScanResults map[string]*set.Set
+
 func checkAllHeaders(respHeaders http.Header, headersToMatch map[string]string) bool {
 	for h, v := range headersToMatch {
 		if v != strings.Join(respHeaders[h], ", ") {
@@ -41,7 +43,7 @@ func scanIp(client *http.Client, url string, headers map[string]string) (bool, e
 	return false, nil
 }
 
-func ScanDomain(iprange config.IPRange, results map[string]*set.Set) {
+func ScanDomain(iprange config.IPRange, results ScanResults) {
 	log.Printf("Scanning domain %v...\n", iprange.Domain.Name)
 
 	newSet := set.New()
