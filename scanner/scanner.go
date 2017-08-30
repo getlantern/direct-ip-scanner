@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jeffail/tunny"
@@ -62,18 +63,24 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads int) {
 	pool, _ := tunny.CreatePoolGeneric(nThreads).Open()
 	defer pool.Close()
 
-	var wg sync.WaitGroup
 	for _, r := range iprange.Domain.Ranges {
-		log.Printf(" - Scanning IP range %v\n", r)
-
 		ips, err := EnumerateIPs(r)
 		if err != nil {
 			log.Fatalf("Error creating IP Reader: %v", err)
 			continue
 		}
 
+		log.Printf(" - Scanning IP range %v, with %v addresses\n", r, len(ips))
+
+		var wg sync.WaitGroup
+		var workers int64 = 0
+
 		for _, ip := range ips {
+			if atomic.LoadInt64(&workers) >= int64(nThreads) {
+				wg.Wait()
+			}
 			wg.Add(1)
+			ip := ip
 			pool.SendWorkTimedAsync(time.Minute, func() {
 				url := strings.Replace(iprange.Domain.Url, "<ip>", ip, 1)
 				log.Printf("    * Scanning: %v\n", url)
@@ -88,7 +95,7 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads int) {
 				wg.Done()
 			}, nil)
 		}
-	}
 
-	wg.Wait()
+		wg.Wait()
+	}
 }
