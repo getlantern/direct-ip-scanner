@@ -75,10 +75,10 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads, timeout i
 
 		for _, ip := range ips {
 			if atomic.LoadInt64(&workers) >= int64(nThreads) {
-				wg.Wait()
+				wg.Add(1)
 			}
 			atomic.AddInt64(&workers, 1)
-			wg.Add(1)
+			wg.Wait()
 
 			go func(ip string) {
 				url := strings.Replace(iprange.Domain.Url, "<ip>", ip, 1)
@@ -94,6 +94,7 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads, timeout i
 				}
 
 				wg.Done()
+				atomic.AddInt64(&workers, -1)
 			}(ip)
 		}
 
