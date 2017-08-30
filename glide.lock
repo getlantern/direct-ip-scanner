@@ -1,6 +1,8 @@
-hash: f5c8e208f18c8d7d709e586f3e20b8a35d704ba285e630351881da1063b5e05f
-updated: 2017-08-29T23:19:44.246175424+02:00
+hash: 6f8bf12ec12112c98bf1a9e400b26cffe2f8dc69d1a0af70f0f0ceb428fc257d
+updated: 2017-08-30T12:54:48.088751163+02:00
 imports:
+- name: github.com/jeffail/tunny
+  version: 54ae6b3774037722ea5cc04b6af6e971b6221fbf
 - name: github.com/workiva/go-datastructures
   version: b9547a38b81ee66409d34781495d771dfa1e7e41
   subpackages:

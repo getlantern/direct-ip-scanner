@@ -5,8 +5,10 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/jeffail/tunny"
 	"github.com/workiva/go-datastructures/set"
 
 	"github.com/getlantern/direct-ip-scanner/config"
@@ -43,8 +45,8 @@ func scanIp(client *http.Client, url string, headers map[string]string) (bool, e
 	return false, nil
 }
 
-func ScanDomain(iprange config.IPRange, results ScanResults) {
-	log.Printf("Scanning domain %v...\n", iprange.Domain.Name)
+func ScanDomain(iprange config.IPRange, results ScanResults, nThreads int) {
+	log.Printf("Scanning domain %v with %v threads...\n", iprange.Domain.Name, nThreads)
 
 	newSet := set.New()
 	results[iprange.Domain.Name] = newSet
@@ -57,6 +59,10 @@ func ScanDomain(iprange config.IPRange, results ScanResults) {
 	}
 	client := &http.Client{Transport: tr}
 
+	pool, _ := tunny.CreatePoolGeneric(nThreads).Open()
+	defer pool.Close()
+
+	var wg sync.WaitGroup
 	for _, r := range iprange.Domain.Ranges {
 		log.Printf(" - Scanning IP range %v\n", r)
 
@@ -67,17 +73,23 @@ func ScanDomain(iprange config.IPRange, results ScanResults) {
 		}
 
 		for current := ipreader.GetCurrentIP(); current != nil; current = ipreader.GetNextIP() {
+			wg.Add(1)
 			ip := ipreader.GetCurrentIP().String()
-			url := strings.Replace(iprange.Domain.Url, "<ip>", ip, 1)
-			log.Printf("    * Scanning: %v\n", url)
+			pool.SendWorkTimedAsync(time.Minute, func() {
+				url := strings.Replace(iprange.Domain.Url, "<ip>", ip, 1)
+				log.Printf("    * Scanning: %v\n", url)
 
-			found, err := scanIp(client, url, iprange.Domain.Response.Headers)
-			if err != nil {
-				log.Printf("There was an error scanning the range %s: %s", r, err)
-			}
-			if found {
-				newSet.Add(ip)
-			}
+				found, err := scanIp(client, url, iprange.Domain.Response.Headers)
+				if err != nil {
+					log.Printf("There was an error scanning the range %s: %s", r, err)
+				}
+				if found {
+					newSet.Add(ip)
+				}
+				wg.Done()
+			}, nil)
 		}
 	}
+
+	wg.Wait()
 }

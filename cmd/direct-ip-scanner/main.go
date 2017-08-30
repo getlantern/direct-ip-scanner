@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"runtime"
 
 	"github.com/getlantern/direct-ip-scanner/config"
 	"github.com/getlantern/direct-ip-scanner/scanner"
@@ -15,10 +16,12 @@ var (
 	results scanner.ScanResults = make(scanner.ScanResults)
 
 	outputFile string
+	nThreads   int
 )
 
 func init() {
 	flag.StringVar(&outputFile, "output", "found-ips.json", "Output JSON file for the found IPs")
+	flag.IntVar(&nThreads, "nthreads", runtime.NumCPU(), "Number of concurrent threads")
 }
 
 type OutputDomain struct {
@@ -40,7 +43,7 @@ func main() {
 	}
 
 	for _, r := range ipranges {
-		scanner.ScanDomain(r, results)
+		scanner.ScanDomain(r, results, nThreads)
 	}
 
 	output := &Output{}
