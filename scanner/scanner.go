@@ -14,6 +14,11 @@ import (
 
 type ScanResults map[string]*set.Set
 
+type ExpectedResponse struct {
+	Headers map[string]string
+	Status string
+}
+
 func checkAllHeaders(respHeaders http.Header, headersToMatch map[string]string) bool {
 	for h, v := range headersToMatch {
 		if v != strings.Join(respHeaders[h], ", ") {
@@ -23,7 +28,11 @@ func checkAllHeaders(respHeaders http.Header, headersToMatch map[string]string) 
 	return true
 }
 
-func scanIp(client *http.Client, url string, headers map[string]string) (bool, error) {
+func checkStatus(respStatus, status string) bool {
+	return status == "" || respStatus == status
+}
+
+func scanIp(client *http.Client, url string, expected ExpectedResponse) (bool, error) {
 	req, err := http.NewRequest("HEAD", url, nil)
 	if err != nil {
 		log.Printf("Error creating request: %v", err)
@@ -37,7 +46,8 @@ func scanIp(client *http.Client, url string, headers map[string]string) (bool, e
 	}
 	defer resp.Body.Close()
 
-	if checkAllHeaders(resp.Header, headers) {
+	if checkAllHeaders(resp.Header, expected.Headers) &&
+		checkStatus(resp.Status, expected.Status) {
 		return true, nil
 	}
 	return false, nil
@@ -76,12 +86,15 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads, timeout i
 				url := strings.Replace(iprange.Domain.Url, "<ip>", ip, 1)
 				log.Printf("    * Scanning: %v...", ip)
 
-				found, err := scanIp(client, url, iprange.Domain.Response.Headers)
+				found, err := scanIp(client, url, ExpectedResponse{
+					Headers: iprange.Domain.Response.Headers,
+					Status: iprange.Domain.Response.Status,
+				})
 				if err != nil {
 					log.Printf("There was an error scanning the range %s: %s", r, err)
 				}
 				if found {
-					log.Printf("Found IP! -> %s", ip)
+					log.Printf("Found IP! -> %s,%s", iprange.Domain.Name, ip)
 					newSet.Add(ip)
 				}
 

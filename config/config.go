@@ -13,6 +13,7 @@ type IPRange struct {
 		Url      string
 		Response struct {
 			Headers map[string]string
+			Status string
 		}
 	}
 }
