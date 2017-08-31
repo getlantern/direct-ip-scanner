@@ -19,8 +19,9 @@ import (
 type ScanResults map[string]*set.Set
 
 type expectedResponse struct {
-	Headers map[string]string
-	Status  string
+	SanValue string
+	Headers  map[string]string
+	Status   string
 }
 
 func checkAllHeaders(respHeaders http.Header, headersToMatch map[string]string) bool {
@@ -34,6 +35,15 @@ func checkAllHeaders(respHeaders http.Header, headersToMatch map[string]string) 
 
 func checkStatus(respStatus, status string) bool {
 	return status == "" || respStatus == status
+}
+
+func checkSanValue(sanList []string, expected string) bool {
+	for _, v := range sanList {
+		if v == expected {
+			return true
+		}
+	}
+	return false
 }
 
 func scanIp(ip, domain string, timeout time.Duration, urlStr string, expected expectedResponse) (found, verifiedCert bool, err error) {
@@ -65,6 +75,7 @@ func scanIp(ip, domain string, timeout time.Duration, urlStr string, expected ex
 		log.Printf("Error creating request: %v", err)
 		return false, false, nil
 	}
+	req.Host = domain
 
 	err = req.Write(conn)
 	if err != nil {
@@ -80,37 +91,42 @@ func scanIp(ip, domain string, timeout time.Duration, urlStr string, expected ex
 
 	if checkAllHeaders(resp.Header, expected.Headers) &&
 		checkStatus(resp.Status, expected.Status) {
+
+		tlsConn, ok := conn.(*tls.Conn)
+		if ok {
+			sanList := tlsConn.ConnectionState().PeerCertificates[0].DNSNames
+			return true, checkSanValue(sanList, expected.SanValue), nil
+		}
 		return true, false, nil
 	}
-	return false, false, nil
+
+	return false, true, nil
 }
 
-func scanWorker(wg *sync.WaitGroup, timeout time.Duration, workerItems *chan (scanItem), foundCallback func(i scanItem, verifidedCert bool)) {
+func scanWorker(wg *sync.WaitGroup, timeout time.Duration, workerItems *chan (scanItem), foundCallback func(i scanItem, verifiedCert bool)) {
 	wg.Add(1)
 	for {
-		select {
-		case item, ok := <-*workerItems:
-			if !ok {
-				wg.Done()
-				return
-			}
+		item, ok := <-*workerItems
+		if !ok {
+			wg.Done()
+			return
+		}
 
-			url := strings.Replace(item.url, "<ip>", item.ip, 1)
-			log.Printf("    * Scanning: %v...", item.ip)
+		url := strings.Replace(item.url, "<ip>", item.ip, 1)
+		log.Printf("    * Scanning: %v...", item.ip)
 
-			found, verifiedCert, err := scanIp(
-				item.ip,
-				item.domain,
-				timeout,
-				url,
-				item.expected,
-			)
-			if err != nil {
-				log.Printf("There was an error scanning the IP %s: %s", item.ip, err)
-			}
-			if found {
-				foundCallback(item, verifiedCert)
-			}
+		found, verifiedCert, err := scanIp(
+			item.ip,
+			item.domain,
+			timeout,
+			url,
+			item.expected,
+		)
+		if err != nil {
+			log.Printf("There was an error scanning the IP %s: %s", item.ip, err)
+		}
+		if found {
+			foundCallback(item, verifiedCert)
 		}
 	}
 }
@@ -137,7 +153,7 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads, timeout i
 			time.Duration(timeout)*time.Second,
 			&itemsQueue,
 			func(item scanItem, verifiedCert bool) {
-				log.Printf("Found IP: %s -> %s, %s", item.domain, item.ip, verifiedCert)
+				log.Printf("Found IP: %s -> %s, %v", item.domain, item.ip, verifiedCert)
 				newSet.Add(item.ip)
 			},
 		)
@@ -158,8 +174,9 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads, timeout i
 				url:    iprange.Domain.Url,
 				ip:     ip,
 				expected: expectedResponse{
-					Headers: iprange.Domain.Response.Headers,
-					Status:  iprange.Domain.Response.Status,
+					Headers:  iprange.Domain.Response.Headers,
+					Status:   iprange.Domain.Response.Status,
+					SanValue: iprange.Domain.Response.SanValue,
 				},
 			}
 		}
