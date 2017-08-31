@@ -84,10 +84,11 @@ func scanIp(ip, domain string, timeout time.Duration, urlStr string, expected ex
 
 	reader := bufio.NewReader(conn)
 	resp, err := http.ReadResponse(reader, req)
-	if err != nil {
+	if err == nil {
+		defer resp.Body.Close()
+	} else {
 		log.Printf("Error reading response: %v", err)
 	}
-	defer resp.Body.Close()
 
 	if checkAllHeaders(resp.Header, expected.Headers) &&
 		checkStatus(resp.Status, expected.Status) {
