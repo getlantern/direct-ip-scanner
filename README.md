@@ -5,9 +5,8 @@ Discover IPs of popular domains based on IP ranges
 
 ## Finding IPs for a domain
 
-You first need to find their autonomous system number. It's in the whois record for any of their IP addresses.
-
-These examples use GNU jwhois.
+You first need to find their autonomous system number. It's in the whois record for any of their IP addresses. These examples use GNU jwhois.
+Note: use all known domains, since they might be in different ASN even.
 
 ```
 $ host www.facebook.com
@@ -32,10 +31,14 @@ $ whois -h whois.radb.net AS38621
 
 Now we know which is Facebook's ASN; let's get their IPv4 address ranges.
 
+```
 $ whois -h whois.radb.net -- -i origin -T route AS32934 | grep route: 
+```
 
 And finally their IPv6 address ranges.
 
+```
 $ whois -h whois.radb.net -- -i origin -T route6 AS32934 | grep route6:
+```
 
 Repeat for all their ASNs, if they actually have more than one.
