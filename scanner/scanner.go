@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/workiva/go-datastructures/set"
@@ -17,7 +18,7 @@ import (
 
 type ScanResults map[string]*set.Set
 
-type ExpectedResponse struct {
+type expectedResponse struct {
 	Headers map[string]string
 	Status  string
 }
@@ -35,22 +36,24 @@ func checkStatus(respStatus, status string) bool {
 	return status == "" || respStatus == status
 }
 
-func scanIp(ip string, timeout time.Duration, urlStr, setHost string, expected ExpectedResponse) (bool, error) {
+func scanIp(ip, domain string, timeout time.Duration, urlStr string, expected expectedResponse) (found, verifiedCert bool, err error) {
 	dialer := &net.Dialer{
 		Timeout: timeout,
 	}
 
 	_url, err := url.Parse(urlStr)
 	if err != nil {
-		return false, nil
+		return false, false, nil
 	}
 
 	var conn net.Conn
 	if _url.Scheme == "https" {
-		conn, err = tls.DialWithDialer(dialer, "tcp", ip+":443", &tls.Config{})
+		conn, err = tls.DialWithDialer(dialer, "tcp", ip+":443", &tls.Config{
+			InsecureSkipVerify: true,
+		})
 		if err != nil {
 			log.Printf("Error connecting to client: %v", err)
-			return false, nil
+			return false, false, nil
 		}
 	} else {
 		conn, err = dialer.Dial("tcp", ip+":80")
@@ -60,7 +63,7 @@ func scanIp(ip string, timeout time.Duration, urlStr, setHost string, expected E
 	req, err := http.NewRequest("HEAD", urlStr, nil)
 	if err != nil {
 		log.Printf("Error creating request: %v", err)
-		return false, nil
+		return false, false, nil
 	}
 
 	err = req.Write(conn)
@@ -75,15 +78,48 @@ func scanIp(ip string, timeout time.Duration, urlStr, setHost string, expected E
 	}
 	defer resp.Body.Close()
 
-	if setHost != "" {
-		req.Host = setHost
-	}
-
 	if checkAllHeaders(resp.Header, expected.Headers) &&
 		checkStatus(resp.Status, expected.Status) {
-		return true, nil
+		return true, false, nil
 	}
-	return false, nil
+	return false, false, nil
+}
+
+func scanWorker(wg *sync.WaitGroup, timeout time.Duration, workerItems *chan (scanItem), foundCallback func(i scanItem, verifidedCert bool)) {
+	wg.Add(1)
+	for {
+		select {
+		case item, ok := <-*workerItems:
+			if !ok {
+				wg.Done()
+				return
+			}
+
+			url := strings.Replace(item.url, "<ip>", item.ip, 1)
+			log.Printf("    * Scanning: %v...", item.ip)
+
+			found, verifiedCert, err := scanIp(
+				item.ip,
+				item.domain,
+				timeout,
+				url,
+				item.expected,
+			)
+			if err != nil {
+				log.Printf("There was an error scanning the IP %s: %s", item.ip, err)
+			}
+			if found {
+				foundCallback(item, verifiedCert)
+			}
+		}
+	}
+}
+
+type scanItem struct {
+	domain   string
+	url      string
+	ip       string
+	expected expectedResponse
 }
 
 func ScanDomain(iprange config.IPRange, results ScanResults, nThreads, timeout int) {
@@ -91,6 +127,21 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads, timeout i
 
 	newSet := set.New()
 	results[iprange.Domain.Name] = newSet
+
+	itemsQueue := make(chan scanItem, nThreads)
+	wg := sync.WaitGroup{}
+
+	for i := 0; i < nThreads; i = i + 1 {
+		go scanWorker(
+			&wg,
+			time.Duration(timeout)*time.Second,
+			&itemsQueue,
+			func(item scanItem, verifiedCert bool) {
+				log.Printf("Found IP: %s -> %s, %s", item.domain, item.ip, verifiedCert)
+				newSet.Add(item.ip)
+			},
+		)
+	}
 
 	for _, r := range iprange.Domain.Ranges {
 		ips, err := EnumerateIPs(r)
@@ -101,33 +152,18 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads, timeout i
 
 		log.Printf(" - Scanning IP range %v, with %v addresses\n", r, len(ips))
 
-		workers := make(chan bool, nThreads)
 		for _, ip := range ips {
-			workers <- true
-
-			go func(ip string) {
-				url := strings.Replace(iprange.Domain.Url, "<ip>", ip, 1)
-				log.Printf("    * Scanning: %v...", ip)
-
-				found, err := scanIp(
-					ip,
-					time.Duration(timeout)*time.Second,
-					url,
-					iprange.Domain.SetHost,
-					ExpectedResponse{
-						Headers: iprange.Domain.Response.Headers,
-						Status:  iprange.Domain.Response.Status,
-					})
-				if err != nil {
-					log.Printf("There was an error scanning the range %s: %s", r, err)
-				}
-				if found {
-					log.Printf("Found IP: %s -> %s", iprange.Domain.Name, ip)
-					newSet.Add(ip)
-				}
-
-				<-workers
-			}(ip)
+			itemsQueue <- scanItem{
+				domain: iprange.Domain.Name,
+				url:    iprange.Domain.Url,
+				ip:     ip,
+				expected: expectedResponse{
+					Headers: iprange.Domain.Response.Headers,
+					Status:  iprange.Domain.Response.Status,
+				},
+			}
 		}
 	}
+
+	wg.Wait()
 }
