@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"context"
 	"crypto/tls"
 	"log"
 	"net/http"
@@ -32,7 +33,7 @@ func checkStatus(respStatus, status string) bool {
 	return status == "" || respStatus == status
 }
 
-func scanIp(client *http.Client, url, setHost string, expected ExpectedResponse) (bool, error) {
+func scanIp(client *http.Client, timeout time.Duration, url, setHost string, expected ExpectedResponse) (bool, error) {
 	req, err := http.NewRequest("HEAD", url, nil)
 	if err != nil {
 		log.Printf("Error creating request: %v", err)
@@ -43,9 +44,14 @@ func scanIp(client *http.Client, url, setHost string, expected ExpectedResponse)
 		req.Host = setHost
 	}
 
+	ctx, cancel := context.WithTimeout(req.Context(), 5*time.Second)
+	defer cancel()
+	req = req.WithContext(ctx)
+
 	resp, err := client.Do(req)
+
 	if err != nil {
-		// log.Printf("Error connecting to client: %v", err)
+		log.Printf("Error connecting to client: %v", err)
 		return false, nil
 	}
 	defer resp.Body.Close()
@@ -64,13 +70,11 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads, timeout i
 	results[iprange.Domain.Name] = newSet
 
 	tr := &http.Transport{
-		MaxIdleConns:       10,
-		DisableCompression: true,
-		TLSClientConfig:    &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 	client := &http.Client{
 		Transport: tr,
-		Timeout:   time.Duration(timeout) * time.Second,
+		// Timeout:   time.Duration(timeout) * time.Second,
 	}
 
 	for _, r := range iprange.Domain.Ranges {
@@ -90,7 +94,10 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads, timeout i
 				url := strings.Replace(iprange.Domain.Url, "<ip>", ip, 1)
 				log.Printf("    * Scanning: %v...", ip)
 
-				found, err := scanIp(client, url, iprange.Domain.SetHost,
+				found, err := scanIp(client,
+					time.Duration(timeout)*time.Second,
+					url,
+					iprange.Domain.SetHost,
 					ExpectedResponse{
 						Headers: iprange.Domain.Response.Headers,
 						Status:  iprange.Domain.Response.Status,

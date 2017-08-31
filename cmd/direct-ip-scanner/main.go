@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"time"
 
 	"github.com/getlantern/direct-ip-scanner/config"
 	"github.com/getlantern/direct-ip-scanner/scanner"
@@ -65,6 +66,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error generating JSON: %s", err)
 	}
+
+	// Hack: wait for some file descriptors to be cleaned up until
+	// we figure out what's wrong
+	time.Sleep(20)
 
 	err = ioutil.WriteFile(outputFile, []byte(outJson), 0644)
 	if err != nil {

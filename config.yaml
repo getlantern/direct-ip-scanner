@@ -3,7 +3,7 @@ ipranges:
       name: vt.media.tumblr.com
       url: 'https://<ip>/tumblr_ovb7k2IyA01v99mzq_480.mp4'
       response:
-        status: 'HTTP/1.1 200 OK'
+        status: '200 OK'
       ranges: 
       # Directly associated with vt.media.tumblr.com
       - 87.248.112.0/24                            
