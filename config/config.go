@@ -11,9 +11,10 @@ type IPRange struct {
 		Name     string
 		Ranges   []string `yaml:",flow"`
 		Url      string
+		SetHost  string
 		Response struct {
 			Headers map[string]string
-			Status string
+			Status  string
 		}
 	}
 }
