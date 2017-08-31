@@ -1,10 +1,12 @@
 package scanner
 
 import (
-	"context"
+	"bufio"
 	"crypto/tls"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -33,28 +35,49 @@ func checkStatus(respStatus, status string) bool {
 	return status == "" || respStatus == status
 }
 
-func scanIp(client *http.Client, timeout time.Duration, url, setHost string, expected ExpectedResponse) (bool, error) {
-	req, err := http.NewRequest("HEAD", url, nil)
+func scanIp(ip string, timeout time.Duration, urlStr, setHost string, expected ExpectedResponse) (bool, error) {
+	dialer := &net.Dialer{
+		Timeout: timeout,
+	}
+
+	_url, err := url.Parse(urlStr)
+	if err != nil {
+		return false, nil
+	}
+
+	var conn net.Conn
+	if _url.Scheme == "https" {
+		conn, err = tls.DialWithDialer(dialer, "tcp", ip+":443", &tls.Config{})
+		if err != nil {
+			log.Printf("Error connecting to client: %v", err)
+			return false, nil
+		}
+	} else {
+		conn, err = dialer.Dial("tcp", ip+":80")
+	}
+	defer conn.Close()
+
+	req, err := http.NewRequest("HEAD", urlStr, nil)
 	if err != nil {
 		log.Printf("Error creating request: %v", err)
 		return false, nil
 	}
 
+	err = req.Write(conn)
+	if err != nil {
+		log.Printf("Error writing request to connection: %v", err)
+	}
+
+	reader := bufio.NewReader(conn)
+	resp, err := http.ReadResponse(reader, req)
+	if err != nil {
+		log.Printf("Error reading response: %v", err)
+	}
+	defer resp.Body.Close()
+
 	if setHost != "" {
 		req.Host = setHost
 	}
-
-	ctx, cancel := context.WithTimeout(req.Context(), 5*time.Second)
-	defer cancel()
-	req = req.WithContext(ctx)
-
-	resp, err := client.Do(req)
-
-	if err != nil {
-		log.Printf("Error connecting to client: %v", err)
-		return false, nil
-	}
-	defer resp.Body.Close()
 
 	if checkAllHeaders(resp.Header, expected.Headers) &&
 		checkStatus(resp.Status, expected.Status) {
@@ -68,14 +91,6 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads, timeout i
 
 	newSet := set.New()
 	results[iprange.Domain.Name] = newSet
-
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	client := &http.Client{
-		Transport: tr,
-		// Timeout:   time.Duration(timeout) * time.Second,
-	}
 
 	for _, r := range iprange.Domain.Ranges {
 		ips, err := EnumerateIPs(r)
@@ -94,7 +109,8 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads, timeout i
 				url := strings.Replace(iprange.Domain.Url, "<ip>", ip, 1)
 				log.Printf("    * Scanning: %v...", ip)
 
-				found, err := scanIp(client,
+				found, err := scanIp(
+					ip,
 					time.Duration(timeout)*time.Second,
 					url,
 					iprange.Domain.SetHost,
