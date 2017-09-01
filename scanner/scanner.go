@@ -3,10 +3,14 @@ package scanner
 import (
 	"bufio"
 	"crypto/tls"
+	"encoding/csv"
+	"fmt"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -38,12 +42,32 @@ func checkStatus(respStatus, status string) bool {
 }
 
 func checkSanValue(sanList []string, expected string) bool {
+	expectedParts := strings.Split(expected, ".")
 	for _, v := range sanList {
 		if v == expected {
 			return true
 		}
+		vParts := strings.Split(v, ".")
+		if wildcardDomainEquals(vParts, expectedParts) {
+			return true
+		}
 	}
 	return false
+}
+
+func wildcardDomainEquals(domain []string, expected []string) bool {
+	if domain[0] != "*" {
+		return false
+	}
+	if len(domain) != len(expected) {
+		return false
+	}
+	for i := 1; i < len(domain); i++ {
+		if domain[i] != expected[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func scanIp(ip, domain string, timeout time.Duration, urlStr string, expected expectedResponse) (found, verifiedCert bool, err error) {
@@ -139,26 +163,31 @@ type scanItem struct {
 	expected expectedResponse
 }
 
-func ScanDomain(iprange config.IPRange, results ScanResults, nThreads, timeout int) {
+func ScanDomain(iprange config.IPRange, results ScanResults, nThreads int, timeout time.Duration) {
 	log.Printf("Scanning domain %v with %v threads (timeout=%v)...\n", iprange.Domain.Name, nThreads, timeout)
 
 	newSet := set.New()
 	results[iprange.Domain.Name] = newSet
 
 	itemsQueue := make(chan scanItem, nThreads)
+	csvOut := csv.NewWriter(os.Stdout)
 	wg := sync.WaitGroup{}
 
 	for i := 0; i < nThreads; i = i + 1 {
 		go scanWorker(
 			&wg,
-			time.Duration(timeout)*time.Second,
+			timeout,
 			&itemsQueue,
 			func(item scanItem, verifiedCert bool) {
 				log.Printf("Found IP: %s -> %s, %v", item.domain, item.ip, verifiedCert)
+				csvOut.Write([]string{item.domain, item.ip, fmt.Sprint(verifiedCert)})
+				csvOut.Flush()
 				newSet.Add(item.ip)
 			},
 		)
 	}
+
+	allIps := make([]string, 0)
 
 	for _, r := range iprange.Domain.Ranges {
 		ips, err := EnumerateIPs(r)
@@ -166,20 +195,25 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads, timeout i
 			log.Fatalf("Error creating IP Reader: %v", err)
 			continue
 		}
+		allIps = append(allIps, ips...)
+	}
 
-		log.Printf(" - Scanning IP range %v, with %v addresses\n", r, len(ips))
+	randomIps := make([]string, len(allIps))
+	randomOrder := rand.Perm(len(allIps))
+	for i, v := range randomOrder {
+		randomIps[i] = allIps[v]
+	}
 
-		for _, ip := range ips {
-			itemsQueue <- scanItem{
-				domain: iprange.Domain.Name,
-				url:    iprange.Domain.Url,
-				ip:     ip,
-				expected: expectedResponse{
-					Headers:  iprange.Domain.Response.Headers,
-					Status:   iprange.Domain.Response.Status,
-					SanValue: iprange.Domain.Response.SanValue,
-				},
-			}
+	for _, ip := range randomIps {
+		itemsQueue <- scanItem{
+			domain: iprange.Domain.Name,
+			url:    iprange.Domain.Url,
+			ip:     ip,
+			expected: expectedResponse{
+				Headers:  iprange.Domain.Response.Headers,
+				Status:   iprange.Domain.Response.Status,
+				SanValue: iprange.Domain.Response.SanValue,
+			},
 		}
 	}
 

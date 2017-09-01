@@ -28,7 +28,7 @@ func listCIDRHosts(cidr string) ([]string, error) {
 		ips = append(ips, ip.String())
 	}
 	// Remove network address and broadcast address
-	return ips[1 : len(ips)-1], nil
+	return ips, nil
 }
 
 // IP ranges parser
@@ -79,7 +79,7 @@ func EnumerateIPs(input string) (ips []string, err error) {
 			}
 
 			rreader := &ipRangeReader{first, last, first}
-			ips = append(ips,rreader.listAllIPs()...)
+			ips = append(ips, rreader.listAllIPs()...)
 		} else {
 			// Otherwise try with CIDR
 			cidrIps, err := listCIDRHosts(s)
