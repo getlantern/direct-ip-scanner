@@ -18,13 +18,13 @@ var (
 
 	outputFile string
 	nThreads   int
-	timeout    int
+	timeout    time.Duration
 )
 
 func init() {
 	flag.StringVar(&outputFile, "output", "found-ips.json", "Output JSON file for the found IPs")
 	flag.IntVar(&nThreads, "nthreads", runtime.NumCPU(), "Number of concurrent threads")
-	flag.IntVar(&timeout, "timeout", 30, "Timeout in seconds")
+	flag.DurationVar(&timeout, "timeout", 5*time.Second, "Timeout")
 }
 
 type OutputDomain struct {

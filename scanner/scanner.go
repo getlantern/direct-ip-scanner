@@ -3,10 +3,14 @@ package scanner
 import (
 	"bufio"
 	"crypto/tls"
+	"encoding/csv"
+	"fmt"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -19,9 +23,9 @@ import (
 type ScanResults map[string]*set.Set
 
 type expectedResponse struct {
-	SanValue string
-	Headers  map[string]string
-	Status   string
+	SanValue   string
+	Headers    map[string]string
+	StatusCode int
 }
 
 func checkAllHeaders(respHeaders http.Header, headersToMatch map[string]string) bool {
@@ -33,17 +37,37 @@ func checkAllHeaders(respHeaders http.Header, headersToMatch map[string]string) 
 	return true
 }
 
-func checkStatus(respStatus, status string) bool {
-	return status == "" || respStatus == status
+func checkStatus(actual, expected int) bool {
+	return expected == 0 || actual == expected
 }
 
 func checkSanValue(sanList []string, expected string) bool {
+	expectedParts := strings.Split(expected, ".")
 	for _, v := range sanList {
 		if v == expected {
 			return true
 		}
+		vParts := strings.Split(v, ".")
+		if wildcardDomainEquals(vParts, expectedParts) {
+			return true
+		}
 	}
 	return false
+}
+
+func wildcardDomainEquals(domain []string, expected []string) bool {
+	if domain[0] != "*" {
+		return false
+	}
+	if len(domain) != len(expected) {
+		return false
+	}
+	for i := 1; i < len(domain); i++ {
+		if domain[i] != expected[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func scanIp(ip, domain string, timeout time.Duration, urlStr string, expected expectedResponse) (found, verifiedCert bool, err error) {
@@ -91,7 +115,7 @@ func scanIp(ip, domain string, timeout time.Duration, urlStr string, expected ex
 	defer resp.Body.Close()
 
 	if checkAllHeaders(resp.Header, expected.Headers) &&
-		checkStatus(resp.Status, expected.Status) {
+		checkStatus(resp.StatusCode, expected.StatusCode) {
 
 		tlsConn, ok := conn.(*tls.Conn)
 		if ok {
@@ -133,29 +157,34 @@ type scanItem struct {
 	expected expectedResponse
 }
 
-func ScanDomain(iprange config.IPRange, results ScanResults, nThreads, timeout int) {
+func ScanDomain(iprange config.IPRange, results ScanResults, nThreads int, timeout time.Duration) {
 	log.Printf("Scanning domain %v with %v threads (timeout=%v)...\n", iprange.Domain.Name, nThreads, timeout)
 
 	newSet := set.New()
 	results[iprange.Domain.Name] = newSet
 
 	itemsQueue := make(chan scanItem, nThreads)
+	csvOut := csv.NewWriter(os.Stdout)
 	wg := sync.WaitGroup{}
 
 	for i := 0; i < nThreads; i = i + 1 {
 		wg.Add(1)
 		go scanWorker(
 			&wg,
-			time.Duration(timeout)*time.Second,
+			timeout,
 			&itemsQueue,
 			func(item scanItem, verifiedCert bool) {
 				log.Printf("Found IP: %s -> %s, %v", item.domain, item.ip, verifiedCert)
+				csvOut.Write([]string{item.domain, item.ip, fmt.Sprint(verifiedCert)})
+				csvOut.Flush()
 				newSet.Add(item.ip)
 			},
 		)
 	}
 
-	for _, r := range iprange.Domain.Ranges {
+	randomOrder := rand.Perm(len(iprange.Domain.Ranges))
+	for _, i := range randomOrder {
+		r := iprange.Domain.Ranges[i]
 		ips, err := EnumerateIPs(r)
 		if err != nil {
 			log.Fatalf("Error creating IP Reader: %v", err)
@@ -170,9 +199,9 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads, timeout i
 				url:    iprange.Domain.Url,
 				ip:     ip,
 				expected: expectedResponse{
-					Headers:  iprange.Domain.Response.Headers,
-					Status:   iprange.Domain.Response.Status,
-					SanValue: iprange.Domain.Response.SanValue,
+					Headers:    iprange.Domain.Response.Headers,
+					StatusCode: iprange.Domain.Response.StatusCode,
+					SanValue:   iprange.Domain.Response.SanValue,
 				},
 			}
 		}
