@@ -111,6 +111,7 @@ ipranges:
       name: googlevideo.com
       url: 'https://<ip>/videoplayback?mn=NO-ID'
       response:
+        sanvalue: '*.googlevideo.com'
         headers:
           Server: gvs 1.0
       ranges:

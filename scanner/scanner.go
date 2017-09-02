@@ -105,14 +105,7 @@ func scanIp(ip, domain string, timeout time.Duration, urlStr string, expected ex
 }
 
 func scanWorker(wg *sync.WaitGroup, timeout time.Duration, workerItems *chan (scanItem), foundCallback func(i scanItem, verifiedCert bool)) {
-	wg.Add(1)
-	for {
-		item, ok := <-*workerItems
-		if !ok {
-			wg.Done()
-			return
-		}
-
+	for item := range *workerItems{
 		url := strings.Replace(item.url, "<ip>", item.ip, 1)
 		log.Printf("    * Scanning: %v...", item.ip)
 
@@ -130,6 +123,7 @@ func scanWorker(wg *sync.WaitGroup, timeout time.Duration, workerItems *chan (sc
 			foundCallback(item, verifiedCert)
 		}
 	}
+	wg.Done()
 }
 
 type scanItem struct {
@@ -149,6 +143,7 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads, timeout i
 	wg := sync.WaitGroup{}
 
 	for i := 0; i < nThreads; i = i + 1 {
+		wg.Add(1)
 		go scanWorker(
 			&wg,
 			time.Duration(timeout)*time.Second,
@@ -183,5 +178,6 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads, timeout i
 		}
 	}
 
+	close(itemsQueue)
 	wg.Wait()
 }
