@@ -23,9 +23,9 @@ import (
 type ScanResults map[string]*set.Set
 
 type expectedResponse struct {
-	SanValue string
-	Headers  map[string]string
-	Status   string
+	SanValue   string
+	Headers    map[string]string
+	StatusCode int
 }
 
 func checkAllHeaders(respHeaders http.Header, headersToMatch map[string]string) bool {
@@ -37,8 +37,8 @@ func checkAllHeaders(respHeaders http.Header, headersToMatch map[string]string) 
 	return true
 }
 
-func checkStatus(respStatus, status string) bool {
-	return status == "" || respStatus == status
+func checkStatus(actual, expected int) bool {
+	return expected == 0 || actual == expected
 }
 
 func checkSanValue(sanList []string, expected string) bool {
@@ -115,7 +115,7 @@ func scanIp(ip, domain string, timeout time.Duration, urlStr string, expected ex
 	defer resp.Body.Close()
 
 	if checkAllHeaders(resp.Header, expected.Headers) &&
-		checkStatus(resp.Status, expected.Status) {
+		checkStatus(resp.StatusCode, expected.StatusCode) {
 
 		tlsConn, ok := conn.(*tls.Conn)
 		if ok {
@@ -187,33 +187,28 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads int, timeo
 		)
 	}
 
-	allIps := make([]string, 0)
-
-	for _, r := range iprange.Domain.Ranges {
+	randomOrder := rand.Perm(len(iprange.Domain.Ranges))
+	for _, i := range randomOrder {
+		r := iprange.Domain.Ranges[i]
 		ips, err := EnumerateIPs(r)
 		if err != nil {
 			log.Fatalf("Error creating IP Reader: %v", err)
 			continue
 		}
-		allIps = append(allIps, ips...)
-	}
 
-	randomIps := make([]string, len(allIps))
-	randomOrder := rand.Perm(len(allIps))
-	for i, v := range randomOrder {
-		randomIps[i] = allIps[v]
-	}
+		log.Printf(" - Scanning IP range %v, with %v addresses\n", r, len(ips))
 
-	for _, ip := range randomIps {
-		itemsQueue <- scanItem{
-			domain: iprange.Domain.Name,
-			url:    iprange.Domain.Url,
-			ip:     ip,
-			expected: expectedResponse{
-				Headers:  iprange.Domain.Response.Headers,
-				Status:   iprange.Domain.Response.Status,
-				SanValue: iprange.Domain.Response.SanValue,
-			},
+		for _, ip := range ips {
+			itemsQueue <- scanItem{
+				domain: iprange.Domain.Name,
+				url:    iprange.Domain.Url,
+				ip:     ip,
+				expected: expectedResponse{
+					Headers:    iprange.Domain.Response.Headers,
+					StatusCode: iprange.Domain.Response.StatusCode,
+					SanValue:   iprange.Domain.Response.SanValue,
+				},
+			}
 		}
 	}
 
