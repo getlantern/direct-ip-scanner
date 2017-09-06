@@ -83,6 +83,7 @@ func EnumerateIPs(input string) (ips []string, err error) {
 		} else {
 			// Otherwise try with CIDR
 			cidrIps, err := listCIDRHosts(s)
+
 			if err != nil {
 				return nil, fmt.Errorf("Invalid IP definition in subrange: %v", s)
 			}

@@ -157,7 +157,7 @@ type scanItem struct {
 	expected expectedResponse
 }
 
-func ScanDomain(iprange config.IPRange, results ScanResults, nThreads int, timeout time.Duration) {
+func ScanDomain(iprange config.IPRange, results ScanResults, nThreads int, timeout time.Duration, randomize bool) {
 	log.Printf("Scanning domain %v with %v threads (timeout=%v)...\n", iprange.Domain.Name, nThreads, timeout)
 
 	newSet := set.New()
@@ -183,8 +183,15 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads int, timeo
 	}
 
 	randomOrder := rand.Perm(len(iprange.Domain.Ranges))
-	for _, i := range randomOrder {
-		r := iprange.Domain.Ranges[i]
+	for i, n := range randomOrder {
+		var pick int
+		if randomize {
+			pick = n
+		} else {
+			pick = i
+		}
+		r := iprange.Domain.Ranges[pick]
+
 		ips, err := EnumerateIPs(r)
 		if err != nil {
 			log.Fatalf("Error creating IP Reader: %v", err)
