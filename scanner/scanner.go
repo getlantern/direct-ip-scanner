@@ -1,7 +1,6 @@
 package scanner
 
 import (
-	"bufio"
 	"crypto/tls"
 	"encoding/csv"
 	"fmt"
@@ -9,7 +8,6 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -75,41 +73,23 @@ func scanIp(ip, domain string, timeout time.Duration, urlStr string, expected ex
 		Timeout: timeout,
 	}
 
-	_url, err := url.Parse(urlStr)
-	if err != nil {
-		return false, false, nil
+	client := &http.Client{
+		Transport: &http.Transport{
+			Dial: func(network, addr string) (net.Conn, error) {
+				return dialer.Dial("tcp", ip+":80")
+			},
+			DialTLS: func(network, addr string) (net.Conn, error) {
+				return tls.DialWithDialer(dialer, "tcp", ip+":443", &tls.Config{
+					InsecureSkipVerify: true,
+					ServerName:         domain,
+				})
+			},
+			DisableKeepAlives: true,
+		},
 	}
 
-	var conn net.Conn
-	if _url.Scheme == "https" {
-		conn, err = tls.DialWithDialer(dialer, "tcp", ip+":443", &tls.Config{
-			InsecureSkipVerify: true,
-		})
-		if err != nil {
-			log.Printf("Error connecting to client: %v", err)
-			return false, false, nil
-		}
-	} else {
-		conn, err = dialer.Dial("tcp", ip+":80")
-	}
-	defer conn.Close()
-
-	req, err := http.NewRequest("HEAD", urlStr, nil)
+	resp, err := client.Head(urlStr)
 	if err != nil {
-		log.Printf("Error creating request: %v", err)
-		return false, false, nil
-	}
-	req.Host = domain
-
-	err = req.Write(conn)
-	if err != nil {
-		log.Printf("Error writing request to connection: %v", err)
-	}
-
-	reader := bufio.NewReader(conn)
-	resp, err := http.ReadResponse(reader, req)
-	if err != nil {
-		log.Printf("Error reading response: %v", err)
 		return false, false, nil
 	}
 	defer resp.Body.Close()
@@ -117,19 +97,15 @@ func scanIp(ip, domain string, timeout time.Duration, urlStr string, expected ex
 	if checkAllHeaders(resp.Header, expected.Headers) &&
 		checkStatus(resp.StatusCode, expected.StatusCode) {
 
-		tlsConn, ok := conn.(*tls.Conn)
-		if ok {
-			sanList := tlsConn.ConnectionState().PeerCertificates[0].DNSNames
-			return true, checkSanValue(sanList, expected.SanValue), nil
-		}
-		return true, false, nil
+		sanList := resp.TLS.PeerCertificates[0].DNSNames
+		return true, checkSanValue(sanList, expected.SanValue), nil
 	}
 
 	return false, false, nil
 }
 
 func scanWorker(wg *sync.WaitGroup, timeout time.Duration, workerItems *chan (scanItem), foundCallback func(i scanItem, verifiedCert bool)) {
-	for item := range *workerItems{
+	for item := range *workerItems {
 		url := strings.Replace(item.url, "<ip>", item.ip, 1)
 		log.Printf("    * Scanning: %v...", item.ip)
 
