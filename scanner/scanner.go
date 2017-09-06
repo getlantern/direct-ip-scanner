@@ -69,12 +69,27 @@ func wildcardDomainEquals(domain []string, expected []string) bool {
 }
 
 func scanIp(ip, domain string, timeout time.Duration, urlStr string, expected expectedResponse) (found, verifiedCert bool, err error) {
-	dialer := &net.Dialer{
-		Timeout: timeout,
-	}
-
 	if net.ParseIP(ip).To4() == nil {
 		ip = "[" + ip + "]"
+	}
+
+	if urlStr == "" {
+		return scanIPOnly(ip, domain, timeout)
+	}
+	return scanHTTPIP(ip, domain, timeout, urlStr, expected)
+}
+
+func scanIPOnly(ip, domain string, timeout time.Duration) (found, verifiedCert bool, err error) {
+	conn, err := net.DialTimeout("tcp", ip, timeout)
+	if conn != nil {
+		conn.Close()
+	}
+	return err == nil, false, err
+}
+
+func scanHTTPIP(ip, domain string, timeout time.Duration, urlStr string, expected expectedResponse) (found, verifiedCert bool, err error) {
+	dialer := &net.Dialer{
+		Timeout: timeout,
 	}
 
 	client := &http.Client{
@@ -90,7 +105,7 @@ func scanIp(ip, domain string, timeout time.Duration, urlStr string, expected ex
 			},
 			DisableKeepAlives: true,
 		},
-
+		Timeout: timeout,
 	}
 
 	resp, err := client.Head(urlStr)
