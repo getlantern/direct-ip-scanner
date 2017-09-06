@@ -7,7 +7,6 @@ import (
 	"strings"
 )
 
-
 // IP ranges parser
 type ipRangeReader struct {
 	first   net.IP
@@ -38,7 +37,7 @@ func listAllCIDRHosts(cidr string) ([]string, error) {
 		ips = append(ips, ip.String())
 	}
 	// Remove network address and broadcast address
-	return ips[1 : len(ips)-1], nil
+	return ips, nil
 }
 
 func (r *ipRangeReader) getNextIPForCIDR() net.IP {
@@ -96,7 +95,7 @@ func EnumerateIPs(input string) (ipsIterator func() net.IP, err error) {
 		if err != nil {
 			return nil, err
 		}
-		
+
 		rreader = &ipRangeReader{nil, nil, ip.Mask(ipnet.Mask), ipnet}
 	}
 

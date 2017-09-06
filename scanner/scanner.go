@@ -110,6 +110,7 @@ func scanHTTPIP(ip, domain string, timeout time.Duration, urlStr string, expecte
 
 	resp, err := client.Head(urlStr)
 	if err != nil {
+		fmt.Printf("%v - %v\n", ip, err)
 		return false, false, nil
 	}
 	defer resp.Body.Close()
