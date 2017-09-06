@@ -11,7 +11,7 @@ def resolve_ips(domain):
     lines = subprocess.check_output(['host', domain]).strip().split('\n')
     return map(lambda l: l.split(' ')[-1], lines)
 
-def find_autonomous_systems_for_ipv4(ip):
+def find_autonomous_systems_for_ip(ip):
     output = subprocess.check_output(['whois', '-h', 'whois.radb.net', ip])
     return map(lambda o: re.search("AS\d*", o).group(), re.findall('origin:.*AS.*', output))
 
@@ -20,9 +20,14 @@ def check_autonomous_system(a):
     for n in map(lambda e: e.split(' ')[-1], re.findall('as-name:.*', output)):
         print "Autonomous System %s belongs to: %s" % (a,n)
 
-def get_autonomous_system_ip_ranges(a):
+def get_autonomous_system_IPv4_ranges(a):
     output = subprocess.check_output(['whois', '-h', 'whois.radb.net', '--', '-i origin -T', 'route', a])
     return [n for n in map(lambda e: e.split(' ')[-1], re.findall('route:.*', output))]
+
+def get_autonomous_system_IPv6_ranges(a):
+    output = subprocess.check_output(['whois', '-h', 'whois.radb.net', '--', '-i origin -T', 'route6', a])
+    return [n for n in map(lambda e: e.split(' ')[-1], re.findall('route6:.*', output))]
+
 
 yaml_template = Template(
 """ipranges:
@@ -46,19 +51,15 @@ def render_template(ips):
     return yaml_template.render(google_ip_ranges=ips)
 
 if __name__ == '__main__':
-    # if not len(sys.argv) == 2:
-    #     print "Please provide exactly one argument: domain name to generate IP spces"
-    #     sys.exit(-1)
-
     ips = resolve_ips(domain)
-    asys = find_autonomous_systems_for_ipv4(ips[0])
+    asys = set(find_autonomous_systems_for_ip(ips[0]))
+    asys |= set(find_autonomous_systems_for_ip(ips[1]))
+
     for a in asys:
         check_autonomous_system(a)
-
-    ip_ranges = []
-    for a in find_autonomous_systems_for_ipv4(ips[0]):
-        check_autonomous_system(a)
-        yaml_str = render_template(get_autonomous_system_ip_ranges(a))
+        ip_ranges = get_autonomous_system_IPv6_ranges(a)
+        ip_ranges = ip_ranges + get_autonomous_system_IPv4_ranges(a)
+        yaml_str = render_template(ip_ranges)
         with open('./config.yaml', 'w+') as f:
             f.seek(0)
             read_data = f.write(yaml_str)
