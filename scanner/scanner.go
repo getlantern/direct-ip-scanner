@@ -80,7 +80,7 @@ func scanIp(ip, domain string, timeout time.Duration, urlStr string, expected ex
 }
 
 func scanIPOnly(ip, domain string, timeout time.Duration) (found, verifiedCert bool, err error) {
-	conn, err := net.DialTimeout("tcp", ip, timeout)
+	conn, err := net.DialTimeout("tcp", ip+":443", timeout)
 	if conn != nil {
 		conn.Close()
 	}
