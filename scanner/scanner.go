@@ -77,12 +77,17 @@ func scanIp(ip, domain string, timeout time.Duration, urlStr string, expected ex
 
 	_url, err := url.Parse(urlStr)
 	if err != nil {
+		log.Printf("Error parsing URL: %v", err)
 		return false, false, nil
 	}
 
 	var conn net.Conn
 	if _url.Scheme == "https" {
-		conn, err = tls.DialWithDialer(dialer, "tcp", ip+":443", &tls.Config{
+		host := ip
+		if net.ParseIP(ip).To4() == nil {
+			host = "[" + host + "]"
+		}
+		conn, err = tls.DialWithDialer(dialer, "tcp", host + ":443", &tls.Config{
 			InsecureSkipVerify: true,
 		})
 		if err != nil {
@@ -90,6 +95,10 @@ func scanIp(ip, domain string, timeout time.Duration, urlStr string, expected ex
 			return false, false, nil
 		}
 	} else {
+		host := ip
+		if net.ParseIP(ip).To4() == nil {
+			host = "[" + host + "]"
+		}
 		conn, err = dialer.Dial("tcp", ip+":80")
 	}
 	defer conn.Close()

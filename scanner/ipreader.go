@@ -100,8 +100,6 @@ func EnumerateIPs(input string) (ipsIterator func() net.IP, err error) {
 		rreader = &ipRangeReader{nil, nil, ip.Mask(ipnet.Mask), ipnet}
 	}
 
-	
-
 	iteratorF := func() net.IP {
 		if rreader.ipnet != nil {
 			return rreader.getNextIPForCIDR()
