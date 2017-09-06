@@ -192,19 +192,23 @@ func ScanDomain(iprange config.IPRange, results ScanResults, nThreads int, timeo
 		}
 		r := iprange.Domain.Ranges[pick]
 
-		ips, err := EnumerateIPs(r)
+		ipsEnumerator, err := EnumerateIPs(r)
 		if err != nil {
 			log.Fatalf("Error creating IP Reader: %v", err)
 			continue
 		}
 
-		log.Printf(" - Scanning IP range %v, with %v addresses\n", r, len(ips))
+		log.Printf(" - Scanning IP range %v\n", r)
 
-		for _, ip := range ips {
+		for {
+			ip := ipsEnumerator()
+			if ip == nil {
+				break
+			}
 			itemsQueue <- scanItem{
 				domain: iprange.Domain.Name,
 				url:    iprange.Domain.Url,
-				ip:     ip,
+				ip:     ip.String(),
 				expected: expectedResponse{
 					Headers:    iprange.Domain.Response.Headers,
 					StatusCode: iprange.Domain.Response.StatusCode,
