@@ -32,10 +32,10 @@ def get_autonomous_system_IPv6_ranges(a):
 yaml_template = Template(
 """ipranges:
   - domain:
-      name: r3---sn-bvvbax4pcxg-50ne.googlevideo.com
-      url: 'https://r3---sn-bvvbax4pcxg-50ne.googlevideo.com/videoplayback?gir=yes&clen=69060963&keepalive=yes&pfa=5&mime=video%2Fwebm&itag=244&key=cms1&lmt=1449588821521369&signature=498721B0CC7FA2FB780E83003F29C0ECCEA552DC.0C969BF2089D1121BF8051DB9F8CAA074FA9FB9B&sparams=clen,ctier,dur,ei,expire,gir,hightc,id,initcwndbps,ip,ipbits,ipbypass,itag,keepalive,lmt,mime,mip,mm,mn,ms,mv,pcm2cms,pfa,pl,requiressl,source&ipbits=0&expire=1504336687&ctier=A&pl=44&id=o-AEo6vRIakwTI4a1RYXrhJS6GF56S93B06Q-Z4TlPqmqL&requiressl=yes&dur=714.280&ip=104.131.186.35&hightc=yes&source=youtube&ei=zwaqWYXFE-na8gT-34yoBw&alr=yes&ratebypass=yes&cpn=OkNWCw91Gruhdx0s&c=web&cver=html5&redirect_counter=1&cms_redirect=yes&ipbypass=yes&mip=2605:a601:41f3:e600:b0c7:60ea:d72f:468a&mm=31&mn=sn-bvvbax4pcxg-50ne&ms=au&mt=1504315004&mv=m&pcm2cms=yes&range=1909920-3743595&rn=11&rbuf=17766'
+      name: r4---sn-h5q7dnee.googlevideo.com
+      url: 'https://r4---sn-h5q7dnee.googlevideo.com/videoplayback?sparams=clen%2Cdur%2Cei%2Cgir%2Cid%2Cinitcwndbps%2Cip%2Cipbits%2Citag%2Ckeepalive%2Clmt%2Cmime%2Cmm%2Cmn%2Cms%2Cmv%2Cpl%2Crequiressl%2Csource%2Cexpire&requiressl=yes&source=youtube&lmt=1504637021894817&dur=2237.721&clen=42187299&gir=yes&initcwndbps=1365000&expire=1504736535&ei=tyCwWY_6E9btcpvctqAB&itag=251&key=yt6&mime=audio%2Fwebm&mv=m&mt=1504714848&ms=au&pl=18&keepalive=yes&id=o-AMSt_0uyFpK1teNOP83xAjtmg5BbviwxK-xv6pj8r-aQ&ipbits=0&mn=sn-h5q7dnee&mm=31&ip=144.178.133.52&alr=yes&ratebypass=yes&signature=1891E58D2DD98CA0346F15A5518E063BFF31FDFD.B77B4E8F52A8F67CBA4BE99C5B4835E773B5B2B4&cpn=khT2WdxdNRM_IlNT&c=web&cver=html5&range=576789-958139&rn=8&rbuf=25282'
       response:
-        sanvalue: r3---sn-bvvbax4pcxg-50ne.googlevideo.com
+        sanvalue: r4---sn-h5q7dnee.googlevideo.com
         statuscode: 200
         headers:
           Server: gvs 1.0
@@ -57,8 +57,8 @@ if __name__ == '__main__':
 
     for a in asys:
         check_autonomous_system(a)
-        ip_ranges = get_autonomous_system_IPv6_ranges(a)
-        ip_ranges = ip_ranges + get_autonomous_system_IPv4_ranges(a)
+        ip_ranges = get_autonomous_system_IPv4_ranges(a)
+        ip_ranges = ip_ranges + get_autonomous_system_IPv6_ranges(a)
         yaml_str = render_template(ip_ranges)
         with open('./config.yaml', 'w+') as f:
             f.seek(0)
