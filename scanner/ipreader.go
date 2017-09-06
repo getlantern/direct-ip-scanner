@@ -7,35 +7,46 @@ import (
 	"strings"
 )
 
-// CIDR parser
-func listCIDRHosts(cidr string) ([]string, error) {
-	ip, ipnet, err := net.ParseCIDR(cidr)
-	if err != nil {
-		return nil, err
-	}
-
-	inc := func(ip net.IP) {
-		for j := len(ip) - 1; j >= 0; j-- {
-			ip[j]++
-			if ip[j] > 0 {
-				break
-			}
-		}
-	}
-
-	var ips []string
-	for ip := ip.Mask(ipnet.Mask); ipnet.Contains(ip); inc(ip) {
-		ips = append(ips, ip.String())
-	}
-	// Remove network address and broadcast address
-	return ips[1 : len(ips)-1], nil
-}
 
 // IP ranges parser
 type ipRangeReader struct {
 	first   net.IP
 	last    net.IP
 	current net.IP
+	ipnet   *net.IPNet
+}
+
+func incIP(ip net.IP) net.IP {
+	for j := len(ip) - 1; j >= 0; j-- {
+		ip[j]++
+		if ip[j] > 0 {
+			break
+		}
+	}
+	return ip
+}
+
+// CIDR parser
+func listAllCIDRHosts(cidr string) ([]string, error) {
+	ip, ipnet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return nil, err
+	}
+
+	var ips []string
+	for ip := ip.Mask(ipnet.Mask); ipnet.Contains(ip); ip = incIP(ip) {
+		ips = append(ips, ip.String())
+	}
+	// Remove network address and broadcast address
+	return ips[1 : len(ips)-1], nil
+}
+
+func (r *ipRangeReader) getNextIPForCIDR() net.IP {
+	for ip := r.current; r.ipnet.Contains(ip); r.current = incIP(ip) {
+		r.current = incIP(ip)
+		return ip
+	}
+	return nil
 }
 
 func (r *ipRangeReader) getNextIP() net.IP {
@@ -62,32 +73,42 @@ func (r *ipRangeReader) listAllIPs() (ips []string) {
 	return ips
 }
 
-func EnumerateIPs(input string) (ips []string, err error) {
-	for _, s := range strings.Split(input, ",") {
+func EnumerateIPs(input string) (ipsIterator func() net.IP, err error) {
+	limits := strings.Split(input, "-")
 
-		limits := strings.Split(s, "-")
+	var rreader *ipRangeReader
 
-		if len(limits) == 2 {
-			// First try with a ip-based range
-			first := net.ParseIP(limits[0])
-			if first == nil {
-				return nil, fmt.Errorf("Invalid IP definition in subrange: %v", s)
-			}
-			last := net.ParseIP(limits[1])
-			if last == nil {
-				return nil, fmt.Errorf("Invalid IP definition in subrange: %v", s)
-			}
+	if len(limits) == 2 {
+		// First try with a ip-based range
+		first := net.ParseIP(limits[0])
+		if first == nil {
+			return nil, fmt.Errorf("Invalid IP definition in range: %v", input)
+		}
+		last := net.ParseIP(limits[1])
+		if last == nil {
+			return nil, fmt.Errorf("Invalid IP definition in range: %v", input)
+		}
 
-			rreader := &ipRangeReader{first, last, first}
-			ips = append(ips, rreader.listAllIPs()...)
+		rreader = &ipRangeReader{first, last, first, nil}
+	} else {
+		// Otherwise try with CIDR
+		ip, ipnet, err := net.ParseCIDR(input)
+		if err != nil {
+			return nil, err
+		}
+		
+		rreader = &ipRangeReader{nil, nil, ip.Mask(ipnet.Mask), ipnet}
+	}
+
+	
+
+	iteratorF := func() net.IP {
+		if rreader.ipnet != nil {
+			return rreader.getNextIPForCIDR()
 		} else {
-			// Otherwise try with CIDR
-			cidrIps, err := listCIDRHosts(s)
-			if err != nil {
-				return nil, fmt.Errorf("Invalid IP definition in subrange: %v", s)
-			}
-			ips = append(ips, cidrIps...)
+			return rreader.getNextIP()
 		}
 	}
-	return ips, nil
+
+	return iteratorF, nil
 }
