@@ -28,7 +28,7 @@ func listCIDRHosts(cidr string) ([]string, error) {
 		ips = append(ips, ip.String())
 	}
 	// Remove network address and broadcast address
-	return ips, nil
+	return ips[1 : len(ips)-1], nil
 }
 
 // IP ranges parser
